@@ -17,7 +17,7 @@ var
   DefaultLoggerProAppenderQueueSize: Cardinal = 50000;
 
 type
-  TLogType = (Debug = 0, Info, Warning, Error);
+  TLogType = (Debug = 0, Info, Warning, Error, Crit, Alert, Emerg);
   TLogErrorReason = (QueueFull);
   TLogErrorAction = (SkipNewest, DiscardOlder);
   TLogExtendedInfo = (EIUserName, EIComputerName, EIProcessName, EIProcessID, EIDeviceID { mobile });
@@ -673,6 +673,12 @@ begin
       Exit('WARNING');
     TLogType.Error:
       Exit('ERROR');
+        TLogType.Crit:
+      Exit('CRITICAL');
+         TLogType.Alert:
+      Exit('ALERT');
+          TLogType.Emerg:
+      Exit('EMERGENCY');
   else
     raise ELoggerPro.Create('Invalid LogType');
   end;

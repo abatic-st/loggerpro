@@ -86,12 +86,14 @@ begin
   FProcID := pProcID;
   FUnixLineBreaks := pUnixLineBreaks;
   FUTF8BOM := pUTF8BOM;
+  SetLogLevel(TLogType.Warning);
 end;
 
 procedure TLoggerProUDPSyslogAppender.Setup;
 begin
   inherited;
   FLoggerProSyslogAppenderClient := TIdUDPClient.Create(nil);
+  FLoggerProSyslogAppenderClient.BufferSize:= 8192 * 16;
 end;
 
 procedure TLoggerProUDPSyslogAppender.TearDown;
@@ -105,12 +107,15 @@ var
   lPacket: TLoggerProUDPSyslogPacket;
 begin
   inherited;
-  lPacket := TLoggerProUDPSyslogPacket.Create(aLogItem, FHostName, FUserName, FApplication, FVersion, FProcID,
-    FUnixLineBreaks, FUTF8BOM);
-  try
-    FLoggerProSyslogAppenderClient.Broadcast(lPacket.SyslogData, FPort, FIP, IndyTextEncoding_UTF8);
-  finally
-    lPacket.Free;
+  if  integer(aLogItem.LogType) >= 0 then
+  begin
+      lPacket := TLoggerProUDPSyslogPacket.Create(aLogItem, FHostName, FUserName, FApplication, FVersion, FProcID,
+        FUnixLineBreaks, FUTF8BOM);
+      try
+        FLoggerProSyslogAppenderClient.Broadcast(lPacket.SyslogData, FPort, FIP, IndyTextEncoding_UTF8);
+      finally
+        lPacket.Free;
+      end;
   end;
 end;
 
@@ -124,15 +129,40 @@ end;
 constructor TLoggerProUDPSyslogPacket.Create(pLogItem: TLogItem; pHostName: string; pUserName: string;
   pApplication: string; pVersion: string; pProcID: string; pUnixLineBreaks: Boolean; pUTF8BOM: Boolean);
 begin
+(*
+           Numerical         Severity
+             Code
+
+              0       Emergency: system is unusable
+              1       Alert: action must be taken immediately
+              2       Critical: critical conditions
+              3       Error: error conditions
+              4       Warning: warning conditions
+              5       Notice: normal but significant condition
+              6       Informational: informational messages
+              7       Debug: debug-level messages
+
+
+*)
+
+
   case pLogItem.LogType of
     TLogType.Debug:
       FPriority := RFC5424Priority(1, 7);
     TLogType.Info:
       FPriority := RFC5424Priority(1, 6);
     TLogType.Warning:
-      FPriority := RFC5424Priority(1, 5);
-    TLogType.Error:
       FPriority := RFC5424Priority(1, 4);
+//      FPriority := RFC5424Priority(1, 5);
+    TLogType.Error:
+      FPriority := RFC5424Priority(1, 3);
+//      FPriority := RFC5424Priority(1, 4);
+    TLogType.Crit:
+      FPriority := RFC5424Priority(1, 2);
+    TLogType.Alert:
+      FPriority := RFC5424Priority(1, 1);
+    TLogType.Emerg:
+      FPriority := RFC5424Priority(1, 0);
   end;
   if pLogItem.LogMessage.Contains('Access Violation') then
     FPriority := RFC5424Priority(1, 3);
@@ -154,16 +184,16 @@ end;
 
 function TLoggerProUDPSyslogPacket.GetSyslogData: string;
 const
-  IANAVersion = '1';
+  IANAVersion = '2';
 begin
   Result :=
   // NOT; RFC 5424 6.2 HEADER
     FPriority + IANAVersion + ' ' + FTimestamp + ' ' + FHostName + ' ' + FApplication + ' ' + FProcID + ' ' + FMessageID
   // NOT; RFC 5424, 6.5 ex 1 no structured data
     + ' - ' + iif(FUTF8BOM, #$EF#$BB#$BF) + FUserName + ' ' + FVersion + ' '
-    + FThreadID + ' ' + FMessageData;
+    + FThreadID + ' ' + FMessageData
   // NOT; RFC 5424 structured data, uncomment and use if needed
-  // + ' [MySDID@1 ' + 'UserName="' + FUserName + '" Version="' + FVersion + '" ThreadId="' + FThreadID + '" MessageData="' + FMessageData + '"]' + ...;
+  // + ' [MySDID@1 ' + 'UserName="' + FUserName + '" Version="' + FVersion + '" ThreadId="' + FThreadID + '" MessageData="' + FMessageData + '"]'  ;
 end;
 
 end.
